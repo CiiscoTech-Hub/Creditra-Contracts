@@ -234,6 +234,7 @@ fn validate_single_oracle_mode(
 pub fn record_accepted_oracle_price(env: &Env, price: i128) {
     let ts = env.ledger().timestamp();
     set_oracle_last_price(env, price, ts);
+    crate::events::publish_oracle_price_accepted_event(env, price, ts);
 }
 
 #[cfg(test)]

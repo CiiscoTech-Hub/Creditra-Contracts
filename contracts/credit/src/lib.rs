@@ -1847,43 +1847,6 @@ impl Credit {
         require_admin_auth(&env);
         set_reentrancy_guard(&env);
 
-        // Oracle price-feed circuit breaker: validate price before settlement.
-        if let Some(cfg) = crate::storage::get_oracle_config(&env) {
-            let price = oracle_price.unwrap_or_else(|| {
-                clear_reentrancy_guard(&env);
-                env.panic_with_error(ContractError::OraclePriceInvalid)
-            });
-
-            if price <= 0 {
-                clear_reentrancy_guard(&env);
-                env.panic_with_error(ContractError::OraclePriceInvalid);
-            }
-
-            let now = env.ledger().timestamp();
-
-            if let Some(last_ts) = crate::storage::get_oracle_last_price_ts(&env) {
-                let age = now.saturating_sub(last_ts);
-                if age > cfg.max_age_seconds {
-                    clear_reentrancy_guard(&env);
-                    env.panic_with_error(ContractError::OraclePriceStale);
-                }
-
-                if let Some(last_price) = crate::storage::get_oracle_last_price(&env) {
-                    let deviation = compute_deviation_bps(price, last_price).unwrap_or_else(|| {
-                        clear_reentrancy_guard(&env);
-                        env.panic_with_error(ContractError::OraclePriceInvalid)
-                    });
-                    if deviation > cfg.max_deviation_bps {
-                        clear_reentrancy_guard(&env);
-                        env.panic_with_error(ContractError::OraclePriceDeviation);
-                    }
-                }
-            }
-
-            crate::storage::set_oracle_last_price(&env, price, now);
-            publish_oracle_price_accepted_event(&env, price, now);
-        }
-
         // Cross-contract auction settlement hook (when configured).
         //
         // Both CPI calls use the try_* variants so that a panic or error
